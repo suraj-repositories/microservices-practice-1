@@ -1,0 +1,106 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: USER-SERVICE
+  datasource:
+    url: jdbc:mysql://localhost:3306/user-service
+    username: root
+    password:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQL8Dialect
+        
+  config:
+    import: optional:configserver:http://localhost:8085/
+    
+  # other securiy configuration of okta
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer: ############ your issuer id ###############
+      client:
+        registration:
+          my-internal-client: 
+            provider: okta
+            authorization-grant-type: client_credentials
+            scope: internal
+            client-id: ############ your client id ###############
+            client-secret: ############ your client secret ###############
+        provider:
+          okta:
+            issuer: ############ your issuer id ###############
+    
+
+########## NOW THE EUREKA CONFIGURATION IS COME FROM CONFIG SERVER ##########
+#eureka:
+#  instance:
+#    prefer-ip-address: true
+#  client:
+#    fetch-registry: true
+#    register-with-eureka: true
+#    service-url:
+#      defaultZone: http://localhost:8761/eureka/
+
+# START configuration for circuit breaker including retry module
+# 1. actuator
+management:
+  health:
+    circuitbreakers:
+      enabled: true
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+  endpoint:
+    health:
+      show-details: always
+
+# 2. resilience4j [notice the name of your circuit breaker line 4]
+resilience4j:
+  circuitbreaker:
+    instances:
+      ratingHotelBreaker:
+        register-health-indicator: true
+        event-consumer-buffer-size: 10
+        failure-rate-threshold: 50
+        minimum-number-of-calls: 5
+        automatic-transition-from-open-to-half-open-enabled: true
+        wait-duration-in-open-state: 5s
+        permitted-number-of-calls-in-half-open-state: 3
+        sliding-window-size: 10
+        sliding-window-type: COUNT_BASED
+        
+  retry:
+    instances:
+      ratingHotelRetryService:
+        max-attempts: 3
+        wait-duration: 1s  
+        
+  ratelimiter:
+    instances:
+      userRateLimiter:
+        limit-refresh-period: 3s
+        limit-for-period: 10
+        timeout-duration: 1s  
+        
+# END configuration for circuit breaker 
+
+
+# START okta configuration
+
+okta:
+  oauth2:
+    issuer: https://dev-96268104.okta.com/oauth2/default
+    audience: api://default
+
+# End okta configuration
